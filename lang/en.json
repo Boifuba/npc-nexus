@@ -1,0 +1,29 @@
+{
+  "npc-nexus": {
+    "settings": {
+      "strapiUrl": {
+        "name": "Strapi URL",
+        "hint": "URL of your Strapi server (e.g., http://localhost:1337)"
+      }
+    },
+    "ui": {
+      "title": "NPCs - Strapi",
+      "openButton": "Strapi NPCs",
+      "loading": "Loading NPCs...",
+      "error": "Error connecting to Strapi. Check the URL in settings.",
+      "empty": "No NPCs found in this campaign",
+      "emptyFiltered": "No NPCs found with the applied filters",
+      "selectCampaign": "Select a campaign to load NPCs",
+      "tokenCreated": "Token \"{name}\" created in scene",
+      "noActiveScene": "No active scene to create token",
+      "errorCreatingToken": "Error creating token",
+      "filters": {
+        "name": "Filter by name...",
+        "allTypes": "All types",
+        "all": "All",
+        "npcsOnly": "NPCs only",
+        "pcsOnly": "PCs only"
+      }
+    }
+  }
+}
