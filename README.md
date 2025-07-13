@@ -32,7 +32,7 @@ Certifique-se de que seu Strapi tenha o content-type `npcs` com a seguinte estru
 
 ## Como usar
 
-1. Clique no botão "NPCs Strapi" na aba de Atores
+1. Clique no botão "NPC Nexus" na aba de Atores
 2. Selecione uma campanha nas abas
 3. Use os filtros para encontrar NPCs específicos
 4. Clique nas imagens para criar tokens na cena ativa

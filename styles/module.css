@@ -1,4 +1,4 @@
-/* NPC Nexus Module Styles */
+/*  NPC Nexus Module Styles */
 .npc-nexus-btn {
   background: #4b5563;
   border: 1px solid #6b7280;
@@ -24,7 +24,7 @@
   height: 100vh;
   background: #2d3748;
   border-left: 2px solid #4a5568;
-  z-index: 9999; /* Increased z-index to ensure visibility */
+  z-index: 9999;
   transition: right 0.3s ease;
   display: flex;
   flex-direction: column;
@@ -148,7 +148,7 @@
   gap: 10px;
 }
 
-.filter-group input,
+.filter-group input[type="text"],
 .filter-group select {
   background: #2d3748;
   border: 1px solid #4a5568;
@@ -158,15 +158,59 @@
   font-size: 12px;
 }
 
-.filter-group input:focus,
+.filter-group input[type="text"]:focus,
 .filter-group select:focus {
   outline: none;
   border-color: #3182ce;
   box-shadow: 0 0 0 2px rgba(49, 130, 206, 0.3);
 }
 
-.filter-group input::placeholder {
+.filter-group input[type="text"]::placeholder {
   color: #a0aec0;
+}
+
+/* Checkbox Group */
+.checkbox-group {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e2e8f0;
+  font-size: 12px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.checkbox-label:hover {
+  color: #cbd5e0;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #3182ce;
+  cursor: pointer;
+  background: #2d3748;
+  /* border: 1px solid #4a5568; */
+  border-radius: 3px;
+}
+
+.checkbox-label input[type="checkbox"]:focus {
+  outline: none !important;
+  border-color: #3182ce !important;
+  box-shadow: 0 0 0 1px rgba(49, 130, 206, 0.5) !important;
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+  background: #3182ce;
+  border-color: #3182ce;
 }
 
 /* NPCs Grid */
@@ -174,6 +218,59 @@
   display: flex;
   flex-direction: column;
   gap: 15px;
+}
+
+/* Type Groups */
+.type-group {
+  margin-bottom: 25px;
+}
+
+.type-header {
+  background: linear-gradient(135deg, #3182ce, #2c5aa0);
+  color: white;
+  padding: 12px 16px;
+  margin: 0 0 15px 0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #4299e1;
+  box-shadow: 0 2px 4px rgba(49, 130, 206, 0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.type-header:hover {
+  background: linear-gradient(135deg, #2c5aa0, #2a4d7c);
+}
+
+.type-header-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.type-toggle {
+  font-size: 16px;
+  transition: transform 0.2s ease;
+}
+
+.type-group.collapsed .type-toggle {
+  transform: rotate(-90deg);
+}
+
+.type-group.collapsed .tokens-container {
+  display: none;
+}
+
+.tokens-container {
+  display: grid;
+  gap: 15px;
+  margin-left: 0;
 }
 
 .npc-card {
@@ -189,29 +286,28 @@
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
+.npc-card.npc-taken {
+  border-color: #e53e3e;
+  background: #2d1b1b;
+}
+
+.npc-card.npc-taken:hover {
+  border-color: #fc8181;
+}
+
 .npc-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.npc-header h4 {
-  margin: 0;
-  font-size: 16px;
-  color: #e2e8f0;
-  flex: 1;
-}
-
-.npc-type {
-  background: #4a5568;
-  color: #e2e8f0;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 500;
+.npc-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .npc-badge {
@@ -220,29 +316,39 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 10px;
-  font-weight: 600;
-}
-
-.pc-badge {
-  background: #38a169;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .npc-tokens {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 10px;
   margin-top: 10px;
+}
+
+/* Token Size Variants */
+#npc-nexus-panel.token-size-small .tokens-container {
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+}
+
+#npc-nexus-panel.token-size-medium .tokens-container {
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+}
+
+#npc-nexus-panel.token-size-large .tokens-container {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+#npc-nexus-panel.token-size-xlarge .tokens-container {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
 .npc-token {
   position: relative;
   aspect-ratio: 1;
-  border-radius: 8px;
+  background: #1a202c;
+  border: 2px solid #4a5568;
+  border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -265,28 +371,125 @@
   transform: scale(1.1);
 }
 
+.token-badges {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.token-badges .npc-badge {
+  padding: 2px 4px;
+  font-size: 8px;
+}
+
+.token-badges .pc-badge {
+  background: #38a169;
+  color: white;
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-size: 8px;
+}
+
+.token-badges .taken-badge {
+  background: #e53e3e;
+  color: white;
+  padding: 2px 4px;
+  border-radius: 2px;
+  font-size: 8px;
+}
+
 /* Status Messages */
-.loading-message,
 .error-message,
 .empty-message,
-.info-message {
+.loading-message {
   text-align: center;
-  padding: 40px 20px;
+  padding: 20px;
   color: #a0aec0;
   font-style: italic;
   font-size: 14px;
 }
 
-.error-message {
-  color: #fc8181;
-}
-
-.info-message {
+.loading-message {
   color: #4299e1;
 }
 
 .loading-message i {
   margin-right: 8px;
+}
+
+/* Token Item Styles */
+.token-item {
+  position: relative;
+  aspect-ratio: 1;
+  background: #1a202c;
+  border: 2px solid #4a5568;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.token-item:hover {
+  border-color: #3182ce;
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+}
+
+.token-item.token-taken {
+  border-color: #e53e3e;
+  background: #2d1b1b;
+}
+
+.token-item.token-taken:hover {
+  border-color: #fc8181;
+}
+
+.token-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+
+.token-item:hover img {
+  transform: scale(1.1);
+}
+
+/* Context Menu */
+.context-menu {
+  position: absolute;
+  background: #2d3748;
+  border: 1px solid #4a5568;
+  border-radius: 4px;
+  padding: 5px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10000;
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.context-menu-item:hover {
+  background: #4a5568;
+}
+
+.context-menu-item i {
+  margin-right: 6px;
 }
 
 /* Responsive adjustments */
@@ -303,7 +506,10 @@
     right: -350px;
   }
   
-  .npc-tokens {
+  .token-size-small .tokens-container,
+  .token-size-medium .tokens-container,
+  .token-size-large .tokens-container,
+  .token-size-xlarge .tokens-container {
     grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
   }
 }
@@ -313,20 +519,20 @@
   box-sizing: border-box;
 }
 
-.npc-nexus-panel::-webkit-scrollbar {
+.panel-content::-webkit-scrollbar {
   width: 8px;
 }
 
-.npc-nexus-panel::-webkit-scrollbar-track {
+.panel-content::-webkit-scrollbar-track {
   background: #1a202c;
 }
 
-.npc-nexus-panel::-webkit-scrollbar-thumb {
+.panel-content::-webkit-scrollbar-thumb {
   background: #4a5568;
   border-radius: 4px;
 }
 
-.npc-nexus-panel::-webkit-scrollbar-thumb:hover {
+.panel-content::-webkit-scrollbar-thumb:hover {
   background: #5a6578;
 }
 
@@ -345,17 +551,4 @@
 #npc-nexus-panel select,
 #npc-nexus-panel button {
   font-family: inherit;
-}
-
-/* Debug styles - remove these in production */
-.npc-nexus-panel {
-  /* Add a visible border for debugging */
-  /* border: 3px solid #ff0000 !important; */
-}
-
-.npc-nexus-panel.open {
-  /* Make sure it's definitely visible */
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
 }

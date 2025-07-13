@@ -4,25 +4,93 @@
       "strapiUrl": {
         "name": "Strapi URL",
         "hint": "URL of your Strapi server (e.g., http://localhost:1337)"
+      },
+      "jwtToken": {
+        "name": "JWT Key",
+        "hint": "JWT token for authentication with Strapi (required to delete NPCs)"
+      },
+      "visibleCampaigns": {
+        "name": "Visible Campaigns",
+        "hint": "List of campaigns that should appear in the dropdown, separated by commas. Leave empty to show all. Example: Campaign1, Campaign2, Campaign3"
+      },
+      "tokenSize": {
+        "name": "Token Image Size",
+        "hint": "Controls the size of token images in the panel"
+      },
+      "panelSide": {
+        "name": "Panel Side",
+        "hint": "Choose which side of the screen the panel should appear on"
       }
     },
     "ui": {
-      "title": "NPCs - Strapi",
-      "openButton": "Strapi NPCs",
+      "title": "NPC Nexus",
+      "openButton": "NPC Nexus",
+      "close": "Close",
+      "selectCampaign": "Select Campaign",
+      "chooseCampaign": "Choose a campaign",
+      "loadCampaign": "Load Campaign",
       "loading": "Loading NPCs...",
       "error": "Error connecting to Strapi. Check the URL in settings.",
       "empty": "No NPCs found in this campaign",
       "emptyFiltered": "No NPCs found with the applied filters",
-      "selectCampaign": "Select a campaign to load NPCs",
+      "selectCampaignMessage": "Select a campaign to load NPCs",
       "tokenCreated": "Token \"{name}\" created in scene",
       "noActiveScene": "No active scene to create token",
       "errorCreatingToken": "Error creating token",
+      "selectExactlyOneToken": "Select exactly one token in the scene",
+      "tokenNotAssociatedWithActor": "Token is not associated with an actor",
+      "tokenAndActorUpdated": "Token and actor updated successfully",
+      "tokenActorAndNotesUpdated": "Token, actor and notes updated successfully",
+      "errorUpdatingToken": "Error updating token and actor",
+      "npcNotFound": "NPC not found",
+      "noNotesAvailable": "No notes available for this NPC",
+      "nameRequired": "Name is required",
+      "campaignRequired": "Campaign is required",
+      "savingChanges": "Saving changes...",
+      "npcUpdatedSuccessfully": "NPC updated successfully!",
+      "errorSavingChanges": "Error saving changes. Check connection to Strapi.",
+      "noCampaignsFound": "No campaigns found",
+      "noCampaignsMatchFilter": "No campaigns match the configured filter",
+      "availableCampaigns": "Available campaigns",
+      "currentFilter": "Current filter",
+      "noTokensAvailable": "No tokens available",
+      "clickToChangeToken": "Click to change selected token",
       "filters": {
         "name": "Filter by name...",
         "allTypes": "All types",
         "all": "All",
         "npcsOnly": "NPCs only",
-        "pcsOnly": "PCs only"
+        "pcsOnly": "PCs only",
+        "hideTaken": "Hide Taken"
+      },
+      "contextMenu": {
+        "viewNotes": "View Notes",
+        "editNpc": "Edit NPC",
+        "deleteNpc": "Delete NPC"
+      },
+      "editDialog": {
+        "title": "Edit NPC - {name}",
+        "notesTitle": "Notes - {name}",
+        "name": "Name",
+        "type": "Type",
+        "campaign": "Campaign",
+        "notes": "Notes",
+        "isNPC": "Is NPC",
+        "isTaken": "Is Taken",
+        "save": "Save",
+        "cancel": "Cancel",
+        "close": "Close"
+      },
+      "deleteDialog": {
+        "title": "Delete NPC - {name}",
+        "confirmMessage": "Are you sure you want to delete this NPC? This action cannot be undone.",
+        "confirmDelete": "Yes, Delete",
+        "cancel": "Cancel",
+        "deleting": "Deleting NPC...",
+        "deletedSuccessfully": "NPC deleted successfully!",
+        "errorDeleting": "Error deleting NPC. Check JWT key in settings.",
+        "jwtRequired": "JWT key is required to delete NPCs. Configure in module settings.",
+        "jwtInvalid": "Invalid or expired JWT key. Check the key in settings."
       }
     }
   }

@@ -2,7 +2,7 @@
   "id": "npc-nexus",
   "title": "NPC Nexus",
   "description": "Módulo para gerenciar NPCs integrado com Strapi CMS",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "compatibility": {
     "minimum": "11",
     "verified": "13"
@@ -16,8 +16,23 @@
   "esmodules": [
     "scripts/main.js"
   ],
+  "templates": [
+    "templates/npc-nexus-panel.html"
+  ],
   "styles": [
-    "styles/module.css"
+    "style/module.css"
+  ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "pt-BR",
+      "name": "Português (Brasil)",
+      "path": "lang/pt-BR.json"
+    }
   ],
   "url": "https://github.com/yourname/npc-strapi-module",
   "manifest": "https://github.com/yourname/npc-strapi-module/releases/latest/download/module.json",

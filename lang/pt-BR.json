@@ -4,25 +4,93 @@
       "strapiUrl": {
         "name": "URL do Strapi",
         "hint": "URL do seu servidor Strapi (ex: http://localhost:1337)"
+      },
+      "jwtToken": {
+        "name": "Chave JWT",
+        "hint": "Token JWT para autenticação com o Strapi (necessário para deletar NPCs)"
+      },
+      "visibleCampaigns": {
+        "name": "Campanhas Visíveis",
+        "hint": "Lista de campanhas que devem aparecer no dropdown, separadas por vírgula. Deixe vazio para mostrar todas. Exemplo: Campanha1, Campanha2, Campanha3"
+      },
+      "tokenSize": {
+        "name": "Tamanho das Imagens de Token",
+        "hint": "Controla o tamanho das imagens dos tokens no painel"
+      },
+      "panelSide": {
+        "name": "Lado do Painel",
+        "hint": "Escolha em qual lado da tela o painel deve aparecer"
       }
     },
     "ui": {
-      "title": "NPCs - Strapi",
-      "openButton": "NPCs Strapi",
+      "title": "NPC Nexus",
+      "openButton": "NPC Nexus",
+      "close": "Fechar",
+      "selectCampaign": "Selecionar Campanha",
+      "chooseCampaign": "Escolha uma campanha",
+      "loadCampaign": "Carregar Campanha",
       "loading": "Carregando NPCs...",
       "error": "Erro ao conectar com o Strapi. Verifique a URL nas configurações.",
       "empty": "Nenhum NPC encontrado nesta campanha",
       "emptyFiltered": "Nenhum NPC encontrado com os filtros aplicados",
-      "selectCampaign": "Selecione uma campanha para carregar os NPCs",
+      "selectCampaignMessage": "Selecione uma campanha para carregar os NPCs",
       "tokenCreated": "Token \"{name}\" criado na cena",
       "noActiveScene": "Nenhuma cena ativa para criar o token",
       "errorCreatingToken": "Erro ao criar o token",
+      "selectExactlyOneToken": "Selecione exatamente um token na cena",
+      "tokenNotAssociatedWithActor": "Token não está associado a ator",
+      "tokenAndActorUpdated": "Token e ator atualizados com sucesso",
+      "tokenActorAndNotesUpdated": "Token, ator e anotações atualizados com sucesso",
+      "errorUpdatingToken": "Erro ao atualizar token e ator",
+      "npcNotFound": "NPC não encontrado",
+      "noNotesAvailable": "Nenhuma anotação disponível para este NPC",
+      "nameRequired": "Nome é obrigatório",
+      "campaignRequired": "Campanha é obrigatória",
+      "savingChanges": "Salvando alterações...",
+      "npcUpdatedSuccessfully": "NPC atualizado com sucesso!",
+      "errorSavingChanges": "Erro ao salvar alterações. Verifique a conexão com o Strapi.",
+      "noCampaignsFound": "Nenhuma campanha encontrada",
+      "noCampaignsMatchFilter": "Nenhuma campanha corresponde ao filtro configurado",
+      "availableCampaigns": "Campanhas disponíveis",
+      "currentFilter": "Filtro atual",
+      "noTokensAvailable": "Nenhum token disponível",
+      "clickToChangeToken": "Clique para alterar o token selecionado",
       "filters": {
         "name": "Filtrar por nome...",
         "allTypes": "Todos os tipos",
         "all": "Todos",
         "npcsOnly": "Apenas NPCs",
-        "pcsOnly": "Apenas PCs"
+        "pcsOnly": "Apenas PCs",
+        "hideTaken": "Ocultar Ocupados"
+      },
+      "contextMenu": {
+        "viewNotes": "Ver Notas",
+        "editNpc": "Editar NPC",
+        "deleteNpc": "Deletar NPC"
+      },
+      "editDialog": {
+        "title": "Editar NPC - {name}",
+        "notesTitle": "Notas - {name}",
+        "name": "Nome",
+        "type": "Tipo",
+        "campaign": "Campanha",
+        "notes": "Anotações",
+        "isNPC": "É NPC",
+        "isTaken": "Está Ocupado",
+        "save": "Salvar",
+        "cancel": "Cancelar",
+        "close": "Fechar"
+      },
+      "deleteDialog": {
+        "title": "Deletar NPC - {name}",
+        "confirmMessage": "Tem certeza que deseja deletar este NPC? Esta ação não pode ser desfeita.",
+        "confirmDelete": "Sim, Deletar",
+        "cancel": "Cancelar",
+        "deleting": "Deletando NPC...",
+        "deletedSuccessfully": "NPC deletado com sucesso!",
+        "errorDeleting": "Erro ao deletar NPC. Verifique a chave JWT nas configurações.",
+        "jwtRequired": "Chave JWT é necessária para deletar NPCs. Configure nas configurações do módulo.",
+        "jwtInvalid": "Chave JWT inválida ou expirada. Verifique a chave nas configurações."
       }
     }
   }
