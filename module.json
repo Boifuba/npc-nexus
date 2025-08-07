@@ -1,41 +1,33 @@
 {
   "id": "npc-nexus",
-  "title": "NPC Nexus",
-  "description": "Módulo para gerenciar NPCs integrado com Strapi CMS",
-  "version": "1.0.2",
+  "title": "NPC Nexus - Local Files",
+  "description": "Módulo para gerenciar NPCs usando arquivos locais",
+  "version": "2.0.1",
   "compatibility": {
-    "minimum": "11",
+    "minimum": "13",
     "verified": "13"
   },
   "authors": [
     {
-      "name": "Your Name",
-      "email": "your.email@example.com"
+      "name": "Boifubá",
+      "email": "cefasheli@gmail.com"
     }
   ],
   "esmodules": [
-    "scripts/main.js"
+    "scripts/main.js",
+    "scripts/name-generator.js"
   ],
   "templates": [
-    "templates/npc-nexus-panel.html"
+    "templates/npc-nexus-panel.html",
+    "templates/name-generator-dialog.html"
   ],
   "styles": [
-    "style/module.css"
+    "styles/module.css"
   ],
-  "languages": [
-    {
-      "lang": "en",
-      "name": "English",
-      "path": "lang/en.json"
-    },
-    {
-      "lang": "pt-BR",
-      "name": "Português (Brasil)",
-      "path": "lang/pt-BR.json"
-    }
-  ],
-  "url": "https://github.com/yourname/npc-strapi-module",
-  "manifest": "https://github.com/yourname/npc-strapi-module/releases/latest/download/module.json",
-  "download": "https://github.com/yourname/npc-strapi-module/releases/latest/download/module.zip",
+  "socket": true,
+  "url": "https://github.com/yourname/npc-nexus-local",
+  "manifest": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.1/module.json",
+  "download": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.1/npc-nexus.zip",
   "license": "MIT"
 }
+

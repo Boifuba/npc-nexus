@@ -1,41 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
 <div id="npc-nexus-panel" class="npc-nexus-panel">
   <div class="panel-header">
     <h3><i class="fas fa-users"></i> NPC Nexus</h3>
-    <button class="close-btn" title="Fechar">
+    <div class="header-buttons">
+      <button id="name-generator-btn" class="header-btn" title="Name Generator">
+        <i class="fas fa-dice"></i>
+      </button>
+    </div>
+    <button class="close-btn" title="Close">
       <i class="fas fa-times"></i>
     </button>
   </div>
 
   <div class="panel-content">
-    <div class="campaign-selector">
-      <label for="campaign-select">Selecionar Campanha:</label>
-      <select id="campaign-select">
-        <option value="">Escolha uma campanha...</option>
-      </select>
-      <button id="load-campaign-btn" disabled>Carregar Campanha</button>
-    </div>
-
-    <div class="filters-section" style="display: none;">
+    <div class="filters-section">
       <div class="filter-group">
-        <input type="text" id="name-filter" placeholder="Filtrar por nome..." />
-        <select id="type-filter">
-          <option value="">Todos os tipos</option>
+        <select id="campaign-filter">
+          <option value="">All Campaigns</option>
         </select>
-        <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="npcs-only-filter" />
-            <span>Apenas NPCs</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" id="hide-taken-filter" />
-            <span>Ocultar Ocupados</span>
-          </label>
-        </div>
+        <select id="type-filter">
+          <option value="">All Types</option>
+        </select>
+        <select id="gender-filter">
+          <option value="">All Genders</option>
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
       </div>
     </div>
 
-    <div class="npcs-grid" id="npcs-grid">
-      <div class="info-message">Selecione uma campanha para carregar os NPCs</div>
+    <div class="npcs-accordion" id="npcs-accordion">
+      <div class="info-message">Loading NPCs...</div>
     </div>
   </div>
 </div>
+</body>
+</html>

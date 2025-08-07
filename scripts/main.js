@@ -1,23 +1,22 @@
+import { NameGenerator } from './name-generator.js';
+
 class NPCNexusModule {
   constructor() {
-    this.strapiUrl = '';
-    this.campaigns = [];
-    this.npcs = new Map(); // Stores NPCs by campaign: Map<campaignName, Array<NPC>>
-    this.loadedCampaigns = new Set();
+    this.folderPath = '';
+    this.npcs = [];
+    this.filteredNpcs = [];
     this.isOpen = false;
-    this.activeCampaign = '';
     this.filters = {
-      name: '',
+      campaign: '',
       type: '',
-      npcsOnly: false,
-      hideTaken: false
+      gender: ''
     };
-    this._currentContextMenuData = null;
+    this.nameGenerator = new NameGenerator();
     this._init();
   }
 
   static ID = 'npc-nexus';
-  static instance = null; // Singleton instance
+  static instance = null;
 
   static initialize() {
     if (!NPCNexusModule.instance) {
@@ -31,48 +30,29 @@ class NPCNexusModule {
    */
   _init() {
     // Register module settings
-    game.settings.register(NPCNexusModule.ID, 'strapiUrl', {
-      name: game.i18n.localize('npc-nexus.settings.strapiUrl.name'),
-      hint: game.i18n.localize('npc-nexus.settings.strapiUrl.hint'),
+    game.settings.register(NPCNexusModule.ID, 'folderPath', {
+      name: 'NPCs Folder',
+      hint: 'Path to the folder containing NPC image files (e.g., npcs)',
       scope: 'world',
       config: true,
       type: String,
-      default: 'https://tokens.rolandodados.com.br'
-    });
-
-    game.settings.register(NPCNexusModule.ID, 'jwtToken', {
-      name: 'Chave JWT',
-      hint: 'Token JWT para autenticação com o Strapi (necessário para deletar NPCs)',
-      scope: 'world',
-      config: true,
-      type: String,
-      default: ''
-    });
-
-    game.settings.register(NPCNexusModule.ID, 'visibleCampaigns', {
-      name: 'Campanhas Visíveis',
-      hint: 'Lista de campanhas que devem aparecer no dropdown, separadas por vírgula. Deixe vazio para mostrar todas. Exemplo: Campanha1, Campanha2, Campanha3',
-      scope: 'world',
-      config: true,
-      type: String,
-      default: ''
+      default: 'npcs'
     });
 
     game.settings.register(NPCNexusModule.ID, 'tokenSize', {
-      name: 'Tamanho das Imagens de Token',
-      hint: 'Controla o tamanho das imagens dos tokens no painel',
+      name: 'Token Image Size',
+      hint: 'Controls the size of token images in the panel',
       scope: 'client',
       config: true,
       type: String,
       choices: {
-        "small": "Pequeno (80px)",
-        "medium": "Médio (120px)",
-        "large": "Grande (160px)",
-        "xlarge": "Extra Grande (200px)"
+        "small": "Small (80px)",
+        "medium": "Medium (120px)",
+        "large": "Large (160px)",
+        "xlarge": "Extra Large (200px)"
       },
       default: "medium",
       onChange: () => {
-        // Re-render the panel if it's open to apply new size
         if (this.isOpen) {
           this._filterAndRenderNPCs();
         }
@@ -80,25 +60,24 @@ class NPCNexusModule {
     });
 
     game.settings.register(NPCNexusModule.ID, 'panelSide', {
-      name: 'Lado do Painel',
-      hint: 'Escolha em qual lado da tela o painel deve aparecer',
+      name: 'Panel Side',
+      hint: 'Choose which side of the screen the panel should appear on',
       scope: 'client',
       config: true,
       type: String,
       choices: {
-        "right": "Direita",
-        "left": "Esquerda"
+        "right": "Right",
+        "left": "Left"
       },
       default: "right",
       onChange: () => {
-        // Update panel position if it's open
         if (this.isOpen) {
           this._updatePanelPosition();
         }
       }
     });
 
-    this.strapiUrl = this._normalizeBaseUrl(game.settings.get(NPCNexusModule.ID, 'strapiUrl'));
+    this.folderPath = game.settings.get(NPCNexusModule.ID, 'folderPath');
 
     // Add controls to the left sidebar
     Hooks.on('renderSidebarTab', (app, html) => {
@@ -113,23 +92,184 @@ class NPCNexusModule {
       this._bindEvents();
       this._exposeAPI();
     });
+    
+    // Add scene control buttons
+    Hooks.on("getSceneControlButtons", (controls) => {
+      const tokenControls = controls.tokens;
+
+      if (tokenControls && tokenControls.tools) {
+        tokenControls.tools["npc-nexus-button"] = {
+          name: "npc-nexus-button",
+          title: "Open NPC Nexus",
+          icon: "fas fa-users",
+          button: true,
+          onClick: () => {
+            NPCNexusModule.instance.togglePanel();
+          },
+          visible: true
+        };
+
+        tokenControls.tools["name-generator-button"] = {
+          name: "name-generator-button",
+          title: "Name Generator",
+          icon: "fas fa-dice",
+          button: true,
+          onClick: () => {
+            NPCNexusModule.instance.showNameGeneratorDialog();
+          },
+          visible: true
+        };
+      }
+    });
   }
 
   /**
-   * Normalizes the base URL by removing trailing slashes
-   * @param {string} url - The base URL to normalize
-   * @returns {string} The normalized URL without trailing slash
+   * Load NPCs from local folder
    */
-  _normalizeBaseUrl(url) {
-    if (!url) return '';
-    return url.replace(/\/+$/, ''); // Remove all trailing slashes
+  async loadNPCsFromFolder() {
+    try {
+      this.npcs = [];
+      await this._loadRecursive(this.folderPath);
+      this._filterAndRenderNPCs();
+      ui.notifications.info(`Loaded ${this.npcs.length} NPCs from folder ${this.folderPath}`);
+    } catch (error) {
+      console.error('Error loading NPCs:', error);
+      ui.notifications.error('Error loading NPCs from folder');
+    }
+  }
+
+  /**
+   * Recursively load files from folder structure
+   */
+  async _loadRecursive(caminho, nivel = 0) {
+    try {
+      let response = await FilePicker.browse("data", caminho);
+      
+      // Debug: Check raw FilePicker paths
+      console.log("Raw FilePicker file paths:", response.files);
+      
+      // Process files in current folder
+      if (response.files && response.files.length > 0) {
+        for (const file of response.files) {
+          // Only process image files
+          if (this._isImageFile(file)) {
+            const fileName = file.split('/').pop();
+            const nameWithoutExt = fileName.replace(/\.[^/.]+$/, "");
+            
+            // Extract metadata from path and filename
+            const pathParts = caminho.split('/');
+            // Remove the base folder path to get relative path parts
+            const relativeParts = pathParts.slice(1); // Skip the base folder
+            
+            let campaign = '';
+            let type = '';
+            let gender = '';
+            
+            // If we have relative parts, first one is campaign
+            if (relativeParts.length > 0) {
+              campaign = relativeParts[0];
+            }
+            
+            // Type is always the second folder
+            if (relativeParts.length > 1) {
+              type = relativeParts[1];
+            }
+            
+            // Look for gender in any part of the path
+            if (pathParts.includes('male')) {
+              gender = 'male';
+            } else if (pathParts.includes('female')) {
+              gender = 'female';
+            }
+
+            // Extract metadata from filename if possible (fallback)
+            const npcDataFromFilename = this._parseFileName(nameWithoutExt);
+            
+            this.npcs.push({
+              id: file, // Use file path as ID
+              name: npcDataFromFilename.name,
+              img: file,
+              type: type || npcDataFromFilename.type || 'NPC',
+              gender: gender || npcDataFromFilename.gender || '',
+              campaign: campaign || npcDataFromFilename.campaign || '',
+              text: '',
+              path: file,
+              folder: caminho
+            });
+          }
+        }
+      }
+      
+      // Process subfolders
+      if (response.dirs && response.dirs.length > 0) {
+        for (let dir of response.dirs) {
+          await this._loadRecursive(dir, nivel + 1);
+        }
+      }
+      
+    } catch (error) {
+      console.log(`Error accessing: ${caminho}`, error);
+    }
+  }
+
+  /**
+   * Check if file is an image
+   */
+  _isImageFile(filePath) {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'];
+    const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+    return imageExtensions.includes(ext);
+  }
+
+  /**
+   * Format machine names to human-readable display names
+   * Converts underscores to spaces and capitalizes words
+   * Also decodes URL-encoded characters
+   */
+  _formatDisplayName(machineName) {
+    if (!machineName) return '';
+    
+    // First decode any URL-encoded characters
+const decoded = decodeURIComponent(machineName).replace(/_/g, ' ');
+
+const capitalized = decoded
+  .split(' ')
+  .map(word => {
+    if (!word) return word;
+    const [first, ...rest] = [...word];
+    return first.toUpperCase() + rest.join('').toLowerCase();
+  })
+  .join(' ');
+
+return capitalized;
+
+
+  }
+
+  /**
+   * Parse filename to extract metadata (fallback for when not in folders)
+   * Expected format: name_type_gender_campaign.ext
+   * Or just: name.ext
+   */
+  _parseFileName(fileName) {
+    const parts = fileName.split('_');
+    
+    if (parts.length === 1) {
+      return { name: parts[0] };
+    }
+    
+    return {
+      name: parts[0] || fileName,
+      type: parts[1] || '',
+      gender: parts[2] || '',
+      campaign: parts[3] || ''
+    };
   }
 
   /**
    * Expose API for macros and external access
    */
   _exposeAPI() {
-    // Expose on the module
     const module = game.modules.get(NPCNexusModule.ID);
     if (module) {
       module.api = {
@@ -140,7 +280,6 @@ class NPCNexusModule {
       };
     }
 
-    // Also expose globally for easier macro access
     window.NPCNexusModule = {
       togglePanel: () => this.togglePanel(),
       openPanel: () => this.openPanel(),
@@ -148,7 +287,6 @@ class NPCNexusModule {
       getInstance: () => this
     };
 
-    // And on the game object
     game.npcNexus = {
       togglePanel: () => this.togglePanel(),
       openPanel: () => this.openPanel(),
@@ -158,13 +296,12 @@ class NPCNexusModule {
   }
 
   /**
-   * Adds the NPC button to the actors sidebar.
-   * @param {jQuery} html - The sidebar HTML element.
+   * Add NPC button to actors sidebar
    */
   _addNPCButton(html) {
     const button = $(`
-      <button class="npc-nexus-btn" title="${game.i18n.localize('npc-nexus.ui.title')}">
-        <i class="fas fa-users"></i> ${game.i18n.localize('npc-nexus.ui.openButton')}
+      <button class="npc-nexus-btn" title="NPC Nexus">
+        <i class="fas fa-users"></i> NPC Nexus
       </button>
     `);
 
@@ -173,66 +310,55 @@ class NPCNexusModule {
   }
 
   /**
-   * Creates the main side panel using the HTML template.
+   * Create the main side panel
    */
   async _createSidePanel() {
     try {
       const html = await renderTemplate('modules/npc-nexus/templates/npc-nexus-panel.html', {});
       $('body').append(html);
-
-      // Apply token size CSS class
       this._applyTokenSize();
       this._updatePanelPosition();
+      // Initial load of NPCs when panel is created
+      this.loadNPCsFromFolder();
     } catch (error) {
       console.error('Error creating side panel:', error);
-      // Fallback to creating panel manually if template fails
       this._createSidePanelFallback();
     }
   }
 
   /**
-   * Fallback method to create side panel if template loading fails
+   * Fallback panel creation
    */
   _createSidePanelFallback() {
     const panel = $(`
       <div id="npc-nexus-panel" class="npc-nexus-panel">
         <div class="panel-header">
-          <h3><i class="fas fa-users"></i>${game.i18n.localize('npc-nexus.ui.title')}</h3>
-          <button class="close-btn" title="${game.i18n.localize('npc-nexus.ui.close')}">
+          <h3><i class="fas fa-users"></i>NPC Nexus</h3>
+          <button class="close-btn" title="Close">
             <i class="fas fa-times"></i>
           </button>
         </div>
 
         <div class="panel-content">
-          <div class="campaign-selector">
-            <label for="campaign-select">${game.i18n.localize('npc-nexus.ui.selectCampaign')}:</label>
-            <select id="campaign-select">
-              <option value="">${game.i18n.localize('npc-nexus.ui.chooseCampaign')}...</option>
-            </select>
-            <button id="load-campaign-btn" disabled>${game.i18n.localize('npc-nexus.ui.loadCampaign')}</button>
-          </div>
-
-          <div class="filters-section" style="display: none;">
+          <div class="filters-section">
             <div class="filter-group">
-              <input type="text" id="name-filter" placeholder="${game.i18n.localize('npc-nexus.ui.filters.name')}" />
-              <select id="type-filter">
-                <option value="">${game.i18n.localize('npc-nexus.ui.filters.allTypes')}</option>
+              <input type="text" id="name-filter" placeholder="Filter by name..." />
+              <select id="campaign-filter">
+                <option value="">All Campaigns</option>
               </select>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" id="npcs-only-filter" />
-                  <span>${game.i18n.localize('npc-nexus.ui.filters.npcsOnly')}</span>
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" id="hide-taken-filter" />
-                  <span>${game.i18n.localize('npc-nexus.ui.filters.hideTaken')}</span>
-                </label>
-              </div>
+              <select id="type-filter">
+                <option value="">All Types</option>
+              </select>
+              <select id="gender-filter">
+                <option value="">All Genders</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </select>
             </div>
           </div>
 
-          <div class="npcs-grid" id="npcs-grid">
-            <div class="info-message">${game.i18n.localize('npc-nexus.ui.selectCampaignMessage')}</div>
+          <div class="npcs-accordion" id="npcs-accordion">
+            <div class="info-message">Loading NPCs...</div>
           </div>
         </div>
       </div>
@@ -240,1153 +366,442 @@ class NPCNexusModule {
 
     $('body').append(panel);
     this._applyTokenSize();
+    this.loadNPCsFromFolder(); // Load NPCs on fallback panel creation as well
   }
 
   /**
-   * Apply the token size setting to the panel
+   * Apply token size setting
    */
   _applyTokenSize() {
     const tokenSize = game.settings.get(NPCNexusModule.ID, 'tokenSize');
     const panel = $('#npc-nexus-panel');
     
-    // Remove existing size classes
-    panel.removeClass('token-size-small token-size-medium token-size-large token-size-xlarge');
-    
-    // Add current size class
-    panel.addClass(`token-size-${tokenSize}`);
+    panel.removeClass('token-small token-medium token-large token-xlarge');
+    panel.addClass(`token-${tokenSize}`);
   }
 
   /**
-   * Update panel position based on settings
+   * Update panel position
    */
   _updatePanelPosition() {
     const panelSide = game.settings.get(NPCNexusModule.ID, 'panelSide');
     const panel = $('#npc-nexus-panel');
     
-    // Remove existing position classes
     panel.removeClass('panel-left panel-right');
-    
-    // Add current position class
     panel.addClass(`panel-${panelSide}`);
   }
 
   /**
-   * Binds event listeners to the panel elements.
+   * Bind events
    */
   _bindEvents() {
-    // Close button
-    $(document).on('click', '.npc-nexus-panel .close-btn', () => {
-      this.togglePanel();
+    $(document).on('click', '#npc-nexus-panel .close-btn', () => {
+      this.closePanel();
     });
 
-    // Campaign selector
-    $(document).on('change', '#campaign-select', (e) => {
-      const selectedCampaign = e.target.value;
-      const loadBtn = $('#load-campaign-btn');
-      
-      if (selectedCampaign) {
-        loadBtn.prop('disabled', false);
-      } else {
-        loadBtn.prop('disabled', true);
-        $('.filters-section').hide();
-        $('#npcs-grid').html(`<div class="info-message">${game.i18n.localize('npc-nexus.ui.selectCampaignMessage')}</div>`);
-      }
+    $(document).on('click', '#name-generator-btn', () => {
+      this.showNameGeneratorDialog();
     });
 
-    // Load campaign button
-    $(document).on('click', '#load-campaign-btn', (e) => {
-      const selectedCampaign = $('#campaign-select').val();
-      if (selectedCampaign) {
-        this.setActiveCampaign(selectedCampaign);
-      }
-    });
-
-    // Filters
-    $(document).on('input', '#name-filter', (e) => {
-      this.filters.name = e.target.value;
+    $(document).on('change', '#campaign-filter', () => {
+      this.filters.campaign = $('#campaign-filter').val();
       this._filterAndRenderNPCs();
     });
 
-    $(document).on('change', '#type-filter', (e) => {
-      this.filters.type = e.target.value;
+    $(document).on('change', '#type-filter', () => {
+      this.filters.type = $('#type-filter').val();
       this._filterAndRenderNPCs();
     });
 
-    $(document).on('change', '#npcs-only-filter', (e) => {
-      this.filters.npcsOnly = e.target.checked;
+    $(document).on('change', '#gender-filter', () => {
+      this.filters.gender = $('#gender-filter').val();
       this._filterAndRenderNPCs();
     });
 
-    $(document).on('change', '#hide-taken-filter', (e) => {
-      this.filters.hideTaken = e.target.checked;
-      this._filterAndRenderNPCs();
-    });
-
-    // NPC token click - modificar token selecionado
-    $(document).on('click', '.token-item', (e) => {
-      const tokenUrl = $(e.currentTarget).data('token-url');
-      const npcName = $(e.currentTarget).data('npc-name');
+    $(document).on('click', '.npc-item', (e) => {
       const npcId = $(e.currentTarget).data('npc-id');
-      const npcText = $(e.currentTarget).data('npc-text');
-      this._updateSelectedToken(tokenUrl, npcName, npcId, npcText);
+      this._applyNpcImageToSelectedToken(npcId);
     });
 
-    // NPC token right-click - show context menu
-    $(document).on('contextmenu', '.token-item', (e) => {
+    $(document).on('contextmenu', '.npc-item', (e) => {
       e.preventDefault();
-      const tokenElement = $(e.currentTarget);
-      const npcId = tokenElement.data('npc-id');
-      const npcName = tokenElement.data('npc-name');
-      
-      this._currentContextMenuData = { npcId, npcName };
-      this._showContextMenu(e.pageX, e.pageY);
-    });
-
-    // Context menu item clicks
-    $(document).on('click', '.context-menu-item', (e) => {
-      const action = $(e.currentTarget).data('action');
-      this._hideContextMenu();
-      
-      if (!this._currentContextMenuData) return;
-      
-      switch (action) {
-        case 'view-notes':
-          this._showNPCNotes();
-          break;
-        case 'edit-npc':
-          this._showEditNPCDialog();
-          break;
-        case 'delete-npc':
-          this._showDeleteNPCDialog();
-          break;
-      }
-    });
-
-    // Hide context menu when clicking outside
-    $(document).on('click', (e) => {
-      if (!$(e.target).closest('.context-menu').length) {
-        this._hideContextMenu();
-      }
-    });
-
-    // Type header collapse/expand
-    $(document).on('click', '.type-header', (e) => {
-      const typeGroup = $(e.currentTarget).closest('.type-group');
-      typeGroup.toggleClass('collapsed');
+      const npcId = $(e.currentTarget).data('npc-id');
+      this._showContextMenu(e, npcId);
     });
   }
 
   /**
-   * Toggles the visibility of the side panel.
-   */
-  async togglePanel() {
-    const panel = $('#npc-nexus-panel');
-
-    if (this.isOpen) {
-      panel.removeClass('open');
-      this.isOpen = false;
-    } else {
-      panel.addClass('open');
-      this.isOpen = true;
-
-      // Apply token size when opening
-      this._applyTokenSize();
-
-      if (this.campaigns.length === 0) {
-        await this._loadCampaigns();
-      }
-    }
-  }
-
-  /**
-   * Opens the side panel.
-   */
-  async openPanel() {
-    if (!this.isOpen) {
-      await this.togglePanel();
-    }
-  }
-
-  /**
-   * Closes the side panel.
-   */
-  closePanel() {
-    if (this.isOpen) {
-      this.togglePanel();
-    }
-  }
-
-  /**
-   * Fetches data from the Strapi API with proper URL construction.
-   * @param {string} endpoint - The API endpoint (e.g., 'api/npcs').
-   * @param {object} params - Query parameters.
-   * @returns {Promise<object>} The JSON response data.
-   */
-  async _fetchFromStrapi(endpoint, params = {}) {
-    // Normalize the endpoint - remove leading slash if present
-    const normalizedEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
-    const fullUrl = `${this.strapiUrl}/${normalizedEndpoint}`;
-    
-    const url = new URL(fullUrl);
-    
-    // Add query parameters properly
-    Object.keys(params).forEach(key => {
-      const value = params[key];
-      if (Array.isArray(value)) {
-        value.forEach(v => url.searchParams.append(key, v));
-      } else if (typeof value === 'object' && value !== null) {
-        // Handle nested objects like pagination and filters
-        Object.keys(value).forEach(subKey => {
-          if (typeof value[subKey] === 'object' && value[subKey] !== null) {
-            // Handle deeper nesting like filters[campaign][$containsi]
-            Object.keys(value[subKey]).forEach(deepKey => {
-              url.searchParams.append(`${key}[${subKey}][${deepKey}]`, value[subKey][deepKey]);
-            });
-          } else {
-            url.searchParams.append(`${key}[${subKey}]`, value[subKey]);
-          }
-        });
-      } else {
-        url.searchParams.append(key, value);
-      }
-    });
-
-    try {
-      const response = await fetch(url.toString());
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('Strapi fetch error:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Loads all unique campaigns from Strapi.
-   */
-  async _loadCampaigns() {
-    try {
-      // Buscar todas as campanhas usando paginação
-      let allNPCs = [];
-      let page = 1;
-      let hasMorePages = true;
-      const pageSize = 100;
-
-      while (hasMorePages) {
-        const data = await this._fetchFromStrapi('api/npcs', {
-          fields: ['campaign'],
-          pagination: {
-            page: page,
-            pageSize: pageSize
-          }
-        });
-
-        if (data && data.data && Array.isArray(data.data)) {
-          allNPCs = allNPCs.concat(data.data);
-        }
-
-        // Verificar se há mais páginas
-        if (data.meta && data.meta.pagination) {
-          const { page: currentPage, pageCount } = data.meta.pagination;
-          hasMorePages = currentPage < pageCount;
-          page++;
-          
-          console.log(`NPC Nexus: ${game.i18n.localize('npc-nexus.ui.loading')} - Página ${currentPage} de ${pageCount}`);
-        } else {
-          hasMorePages = false;
-        }
-      }
-
-      const campaignSet = new Set();
-
-      // Processar todos os NPCs carregados
-      allNPCs.forEach(npc => {
-        // Verificar se tem campaign
-        const campaign = npc.campaign || npc.attributes?.campaign;
-        if (campaign) {
-          campaignSet.add(campaign.trim());
-        }
-      });
-
-      this.campaigns = Array.from(campaignSet).sort();
-      console.log('NPC Nexus: Total de campanhas encontradas:', this.campaigns.length, this.campaigns);
-      this._populateCampaignSelect();
-
-      if (this.campaigns.length === 0) {
-        $('#npcs-grid').html(`<div class="info-message">${game.i18n.localize('npc-nexus.ui.noCampaignsFound')}</div>`);
-      }
-    } catch (error) {
-      console.error('Error loading campaigns:', error);
-      ui.notifications.error(game.i18n.localize('npc-nexus.ui.error'));
-      $('#npcs-grid').html(`<div class="error-message">${game.i18n.localize('npc-nexus.ui.error')}</div>`);
-    }
-  }
-
-  /**
-   * Populates the campaign select dropdown filtering by visible campaigns setting.
-   */
-  _populateCampaignSelect() {
-    const campaignSelect = $('#campaign-select');
-    campaignSelect.find('option:not(:first)').remove(); // Keep "Choose campaign" option
-
-    // Get visible campaigns setting
-    const visibleCampaignsString = game.settings.get(NPCNexusModule.ID, 'visibleCampaigns');
-    let visibleCampaigns = [];
-
-    if (visibleCampaignsString && visibleCampaignsString.trim()) {
-      // Parse the comma-separated list and trim whitespace
-      visibleCampaigns = visibleCampaignsString
-        .split(',')
-        .map(campaign => campaign.trim())
-        .filter(campaign => campaign.length > 0);
-    }
-
-    // Filter campaigns based on settings
-    let campaignsToShow = this.campaigns;
-    if (visibleCampaigns.length > 0) {
-      campaignsToShow = this.campaigns.filter(campaign => 
-        visibleCampaigns.includes(campaign)
-      );
-    }
-
-    campaignsToShow.forEach(campaign => {
-      campaignSelect.append(`<option value="${campaign}">${campaign}</option>`);
-    });
-
-    // Show message if no campaigns match the filter
-    if (campaignsToShow.length === 0 && visibleCampaigns.length > 0) {
-      $('#npcs-grid').html(`<div class="info-message">${game.i18n.localize('npc-nexus.ui.noCampaignsMatchFilter')}.<br>
-         ${game.i18n.localize('npc-nexus.ui.availableCampaigns')}: ${this.campaigns.join(', ')}<br>
-         ${game.i18n.localize('npc-nexus.ui.currentFilter')}: ${visibleCampaigns.join(', ')}</div>`);
-    }
-  }
-
-  /**
-   * Populates the type filter dropdown with unique NPC types.
-   * @param {string[]} types - Array of unique NPC types.
-   */
-  _populateTypeFilter(types) {
-    const typeFilter = $('#type-filter');
-    typeFilter.find('option:not(:first)').remove(); // Keep "All types" option
-
-    types.sort().forEach(type => {
-      typeFilter.append(`<option value="${type}">${type}</option>`);
-    });
-  }
-
-  /**
-   * Sets the active campaign and loads/renders NPCs for it.
-   * @param {string} campaign - The name of the campaign to activate.
-   */
-  async setActiveCampaign(campaign) {
-    this.activeCampaign = campaign;
-
-    // Load NPCs for this campaign if not already loaded
-    if (!this.loadedCampaigns.has(campaign)) {
-      await this._loadNPCsForCampaign(campaign);
-    }
-
-    // Show filters section
-    $('.filters-section').show();
-    
-    this._filterAndRenderNPCs();
-  }
-
-  /**
-   * Loads NPCs for a specific campaign from Strapi with correct populate.
-   * @param {string} campaign - The campaign name.
-   */
-  async _loadNPCsForCampaign(campaign) {
-    const grid = $('#npcs-grid');
-    grid.html(`<div class="loading-message"><i class="fas fa-spinner fa-spin"></i> ${game.i18n.localize('npc-nexus.ui.loading')}</div>`);
-
-    try {
-      // Buscar todos os NPCs da campanha específica usando paginação
-      let allNPCs = [];
-      let page = 1;
-      let hasMorePages = true;
-      const pageSize = 100;
-
-      while (hasMorePages) {
-        const data = await this._fetchFromStrapi('api/npcs', {
-          'populate[token][populate]': '*',
-          filters: {
-            campaign: {
-              '$containsi': campaign.trim()
-            }
-          },
-          pagination: {
-            page: page,
-            pageSize: pageSize
-          }
-        });
-
-        if (data && data.data && Array.isArray(data.data)) {
-          allNPCs = allNPCs.concat(data.data);
-        }
-
-        // Verificar se há mais páginas
-        if (data.meta && data.meta.pagination) {
-          const { page: currentPage, pageCount } = data.meta.pagination;
-          hasMorePages = currentPage < pageCount;
-          page++;
-          
-          console.log(`NPC Nexus: Carregando NPCs da campanha "${campaign}" - Página ${currentPage} de ${pageCount}`);
-        } else {
-          hasMorePages = false;
-        }
-      }
-
-      if (allNPCs.length > 0) {
-        // Process NPCs to normalize structure
-        const processedNPCs = allNPCs.map(npc => {
-          // Check if NPC has attributes structure (Strapi v4 format)
-          if (npc.attributes) {
-            return {
-              id: npc.id,
-              documentId: npc.documentId, // Store both id and documentId for Strapi 5
-              ...npc.attributes
-            };
-          } else {
-            return {
-              ...npc,
-              documentId: npc.documentId || npc.id // Fallback to id if no documentId
-            };
-          }
-        });
-        
-        this.npcs.set(campaign, processedNPCs);
-        this.loadedCampaigns.add(campaign);
-        
-        console.log(`NPC Nexus: Total de NPCs carregados para "${campaign}":`, processedNPCs.length);
-
-        // Extrair tipos únicos para este campaign
-        const typeSet = new Set();
-        processedNPCs.forEach(npc => {
-          if (npc && npc.type) {
-            typeSet.add(npc.type);
-          }
-        });
-        this._populateTypeFilter(Array.from(typeSet));
-
-      } else {
-        this.npcs.set(campaign, []);
-        this.loadedCampaigns.add(campaign);
-        console.log(`NPC Nexus: Nenhum NPC encontrado para a campanha "${campaign}"`);
-      }
-
-    } catch (error) {
-      console.error('Error loading NPCs for campaign:', error);
-      grid.html(`<div class="error-message">${game.i18n.localize('npc-nexus.ui.error')}</div>`);
-    }
-  }
-
-  /**
-   * Applies filters and renders the NPCs in the grid.
+   * Filter and render NPCs
    */
   _filterAndRenderNPCs() {
-    const grid = $('#npcs-grid');
-    const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-
-    if (campaignNPCs.length === 0) {
-      grid.html(`<div class="empty-message">${game.i18n.localize('npc-nexus.ui.empty')}</div>`);
-      return;
+    // Start with all NPCs
+    let filteredNpcs = [...this.npcs];
+    
+    // Apply campaign filter only
+    if (this.filters.campaign) {
+      filteredNpcs = filteredNpcs.filter(npc => npc.campaign === this.filters.campaign);
     }
+    
+    // Update type filter based on campaign-filtered NPCs
+    this._updateTypeFilter(filteredNpcs);
+    
+    // Apply type filter
+    if (this.filters.type) {
+      filteredNpcs = filteredNpcs.filter(npc => npc.type === this.filters.type);
+    }
+    
+    // Update gender filter (static)
+    this._updateGenderFilter();
+    
+    // Apply gender filter
+    if (this.filters.gender) {
+      filteredNpcs = filteredNpcs.filter(npc => npc.gender === this.filters.gender);
+    }
+    
+    this.filteredNpcs = filteredNpcs;
 
-    const filteredNPCs = this._applyFilters(campaignNPCs);
+    this._renderNPCs();
+    this._updateCampaignFilter();
+  }
 
-    if (filteredNPCs.length === 0) {
-      grid.html(`<div class="empty-message">${game.i18n.localize('npc-nexus.ui.emptyFiltered')}</div>`);
+  /**
+   * Render NPCs in accordion organized by type
+   */
+  _renderNPCs() {
+    const accordion = $('#npcs-accordion');
+    
+    if (this.filteredNpcs.length === 0) {
+      accordion.html('<div class="info-message">No NPCs found</div>');
       return;
     }
 
     // Group NPCs by type
-    const groupedNPCs = {};
-    filteredNPCs.forEach(npc => {
-      const type = npc.type || 'Outros'; // Use 'Outros' for NPCs without type
-      if (!groupedNPCs[type]) {
-        groupedNPCs[type] = [];
+    const npcsByType = {};
+    this.filteredNpcs.forEach(npc => {
+      const type = npc.type || 'No Type';
+      if (!npcsByType[type]) {
+        npcsByType[type] = [];
       }
-      groupedNPCs[type].push(npc);
+      npcsByType[type].push(npc);
     });
 
-    // Sort types alphabetically
-    const sortedTypes = Object.keys(groupedNPCs).sort();
+    // Create accordion sections for each type
+    const accordionSections = Object.keys(npcsByType).map(type => {
+      const npcsInType = npcsByType[type];
+      const typeId = type.toLowerCase().replace(/\s+/g, '-');
+      
+      const npcElements = npcsInType.map(npc => {
+        const genderClass = npc.gender ? `gender-${npc.gender}` : '';
+        return `
+          <div class="npc-item ${genderClass}" data-npc-id="${npc.id}" title="${npc.name}">
+            <div class="npc-image">
+              <img src="${npc.img}" alt="${npc.name}" loading="lazy">
+            </div>
+          </div>
+        `;
+      }).join('');
 
-    let html = '';
-    
-    // Iterate through each type group
-    sortedTypes.forEach(type => {
-      const npcsInGroup = groupedNPCs[type];
-      
-      // Collect all tokens for this type
-      let allTokensForType = [];
-      npcsInGroup.forEach(npc => {
-        if (!npc) return;
-        
-        const tokens = this._extractTokenImages(npc.token);
-        tokens.forEach(token => {
-          const fullUrl = `${this.strapiUrl}${token.url}`;
-          const thumbnailUrl = this._getThumbnailUrl(token);
-          const displayUrl = thumbnailUrl ? `${this.strapiUrl}${thumbnailUrl}` : fullUrl;
-          
-          allTokensForType.push({
-            fullUrl,
-            displayUrl,
-            npcName: npc.name,
-            npcId: npc.id,
-            npcDocumentId: npc.documentId, // Store both for reference
-            tokenName: token.name || 'Token',
-            isNPC: npc.isNPC,
-            isTaken: npc.isTaken,
-            npcText: npc.text || ''
-          });
-        });
-      });
-      
-      // Create one box for all tokens of this type
-      html += `
-        <div class="type-group">
-          <h3 class="type-header">
-            <div class="type-header-content">
-              <span>${type} (${allTokensForType.length})</span>
+      const displayType = this._formatDisplayName(type);
+
+      return `
+        <div class="accordion-section">
+          <div class="accordion-header" data-type="${typeId}">
+            <h4>${displayType} (${npcsInType.length})</h4>
+            <i class="fas fa-chevron-down accordion-icon"></i>
+          </div>
+          <div class="accordion-content" id="accordion-${typeId}">
+            <div class="npcs-grid">
+              ${npcElements}
             </div>
-            <div class="type-toggle">
-              <i class="fas fa-chevron-down"></i>
-            </div>
-          </h3>
-          <div class="tokens-container">
-            ${allTokensForType.map(tokenData => `
-              <div class="token-item ${tokenData.isTaken ? 'token-taken' : ''}" 
-                   data-token-url="${tokenData.fullUrl}" 
-                   data-npc-name="${tokenData.npcName}" 
-                   data-npc-id="${tokenData.npcId}"
-                   data-npc-document-id="${tokenData.npcDocumentId}"
-                   data-npc-text="${tokenData.npcText}"
-                   title="${game.i18n.localize('npc-nexus.ui.clickToChangeToken')}">
-                <img src="${tokenData.displayUrl}" alt="${tokenData.tokenName}" loading="lazy" />
-                <div class="token-badges">
-                  ${tokenData.isNPC === true ? `<span class="npc-badge">NPC</span>` : ''}
-                  ${tokenData.isNPC === false ? `<span class="pc-badge">PC</span>` : ''}
-                  ${tokenData.isTaken ? `<span class="taken-badge">Ocupado</span>` : ''}
-                </div>
-              </div>
-            `).join('')}
           </div>
         </div>
       `;
-    });
+    }).join('');
 
-    grid.html(html);
+    accordion.html(accordionSections);
+
+    // Add accordion functionality
+    this._bindAccordionEvents();
   }
 
   /**
-   * Extracts token images from Strapi response handling different possible structures.
-   * @param {*} tokenData - The token data from Strapi response
-   * @returns {Array} Array of token image objects
+   * Bind accordion events
    */
-  _extractTokenImages(tokenData) {
-    if (!tokenData) return [];
-
-    // Se for um array direto
-    if (Array.isArray(tokenData)) {
-      return tokenData.map(token => this._normalizeTokenData(token));
-    }
-
-    // Se tiver estrutura data
-    if (tokenData.data) {
-      if (Array.isArray(tokenData.data)) {
-        return tokenData.data.map(token => this._normalizeTokenData(token));
-      } else {
-        return [this._normalizeTokenData(tokenData.data)];
-      }
-    }
-
-    // Se for um objeto único
-    if (tokenData.attributes || tokenData.url) {
-      return [this._normalizeTokenData(tokenData)];
-    }
-
-    return [];
-  }
-
-  /**
-   * Normalizes token data from different Strapi response structures.
-   * @param {*} token - Token data object
-   * @returns {object} Normalized token object
-   */
-  _normalizeTokenData(token) {
-    if (!token) return null;
-
-    // Se já tem estrutura attributes
-    if (token.attributes) {
-      return {
-        id: token.id,
-        url: token.attributes.url,
-        name: token.attributes.name,
-        formats: token.attributes.formats,
-        alternativeText: token.attributes.alternativeText
-      };
-    }
-
-    // Se é um objeto direto da imagem
-    if (token.url) {
-      return {
-        id: token.id,
-        url: token.url,
-        name: token.name,
-        formats: token.formats,
-        alternativeText: token.alternativeText
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * Gets the best thumbnail URL for a token image.
-   * @param {object} token - Token image object
-   * @returns {string|null} Thumbnail URL or null
-   */
-  _getThumbnailUrl(token) {
-    if (!token || !token.formats) return null;
-
-    // Prioridade: thumbnail > small > medium
-    if (token.formats.thumbnail) {
-      return token.formats.thumbnail.url;
-    }
-    if (token.formats.small) {
-      return token.formats.small.url;
-    }
-    if (token.formats.medium) {
-      return token.formats.medium.url;
-    }
-
-    return null;
-  }
-
-  /**
-   * Applies the current filters to a list of NPCs.
-   * @param {Array<object>} npcs - The list of NPCs to filter.
-   * @returns {Array<object>} The filtered list of NPCs.
-   */
-  _applyFilters(npcs) {
-    return npcs.filter(npc => {
-      // Verificar se npc existe
-      if (!npc) return false;
-
-      const matchesName = !this.filters.name ||
-        (npc.name && npc.name.toLowerCase().includes(this.filters.name.toLowerCase()));
-
-      const matchesType = !this.filters.type ||
-        npc.type === this.filters.type;
-
-      const matchesNPCsOnly = !this.filters.npcsOnly ||
-        npc.isNPC === true;
-
-      const matchesHideTaken = !this.filters.hideTaken ||
-        npc.isTaken !== true;
-
-      return matchesName && matchesType && matchesNPCsOnly && matchesHideTaken;
+  _bindAccordionEvents() {
+    $(document).off('click', '.accordion-header').on('click', '.accordion-header', function() {
+      const $header = $(this);
+      const $content = $header.next('.accordion-content');
+      const $icon = $header.find('.accordion-icon');
+      
+      // Toggle content visibility
+      $content.slideToggle();
+      
+      // Toggle icon rotation
+      $icon.toggleClass('rotated');
+      
+      // Toggle active state
+      $header.toggleClass('active');
     });
   }
 
   /**
-   * Finds the correct path for notes/biography field based on the actor's system
-   * @param {object} systemData - The actor's system data
-   * @returns {string|null} The path to the notes field or null if not found
+   * Update campaign filter options
    */
-  _getValidNotesPath(systemData) {
-    // Check for GURPS-style notes object
-    if (systemData.notes && typeof systemData.notes === 'object' && 'notes' in systemData.notes) {
-      return 'system.notes';
-    }
+  _updateCampaignFilter() {
+    const campaignFilter = $('#campaign-filter');
+    const currentValue = campaignFilter.val();
     
-    // Check for simple notes string
-    if ('notes' in systemData && typeof systemData.notes === 'string') {
-      return 'system.notes';
-    }
+    const campaigns = [...new Set(this.npcs.map(npc => npc.campaign).filter(campaign => campaign))];
     
-    // Check for bio field (common in many systems)
-    if ('bio' in systemData) {
-      return 'system.bio';
-    }
+    campaignFilter.empty();
+    campaignFilter.append('<option value="">All Campaigns</option>');
     
-    // Check for biography field
-    if ('biography' in systemData) {
-      return 'system.biography';
-    }
+    campaigns.forEach(campaign => {
+      const displayCampaign = this._formatDisplayName(campaign);
+      campaignFilter.append(`<option value="${campaign}">${displayCampaign}</option>`);
+    });
     
-    // Check for details.notes (D&D 5e style)
-    if (systemData.details && 'notes' in systemData.details) {
-      return 'system.details.notes';
-    }
-    
-    // Check for details.biography (D&D 5e style)
-    if (systemData.details && 'biography' in systemData.details) {
-      return 'system.details.biography';
-    }
-    
-    // Check for character.bio (some systems)
-    if (systemData.character && 'bio' in systemData.character) {
-      return 'system.character.bio';
-    }
-    
-    return null;
+    campaignFilter.val(currentValue);
   }
 
   /**
-   * Updates the selected token's image and optionally name.
-   * @param {string} tokenUrl - The URL of the new token image.
-   * @param {string} npcName - The name of the NPC.
-   * @param {string} npcId - The ID of the NPC.
-   * @param {string} npcText - The notes/text of the NPC.
+   * Update type filter options
    */
-  async _updateSelectedToken(tokenUrl, npcName, npcId, npcText) {
+  _updateTypeFilter(npcsToConsider = this.npcs) {
+    const typeFilter = $('#type-filter');
+    const currentValue = typeFilter.val();
+    
+    const types = [...new Set(npcsToConsider.map(npc => npc.type).filter(type => type))];
+    
+    typeFilter.empty();
+    typeFilter.append('<option value="">All Types</option>');
+    
+    types.forEach(type => {
+      const displayType = this._formatDisplayName(type);
+      typeFilter.append(`<option value="${type}">${displayType}</option>`);
+    });
+    
+    typeFilter.val(currentValue);
+  }
+
+  /**
+   * Update gender filter options
+   */
+  _updateGenderFilter() {
+    const genderFilter = $('#gender-filter');
+    const currentValue = genderFilter.val();
+    
+    genderFilter.empty();
+    genderFilter.append('<option value="">All Genders</option>');
+    genderFilter.append('<option value="male">Male</option>');
+    genderFilter.append('<option value="female">Female</option>');
+    
+    genderFilter.val(currentValue);
+  }
+
+  /**
+   * Get all images in a specific folder (recursively)
+   */
+  async _getImagesInFolder(folderPath) {
+    const images = [];
+    
     try {
-      const controlled = canvas.tokens.controlled;
-      if (controlled.length !== 1) {
-        ui.notifications.warn(game.i18n.localize('npc-nexus.ui.selectExactlyOneToken'));
-        return;
-      }
-
-      const token = controlled[0];
-      const actor = token.actor;
-      if (!actor) {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.tokenNotAssociatedWithActor'));
-        return;
-      }
-
-      // Prepare actor update data
-      const actorUpdateData = {
-        'prototypeToken.texture.src': tokenUrl,
-        'prototypeToken.img': tokenUrl,
-        img: tokenUrl,
-        name: npcName
-      };
-
-      // Add notes if available and find valid path
-      if (npcText && actor.system) {
-        const notesPath = this._getValidNotesPath(actor.system);
-        if (notesPath) {
-          if (notesPath === 'system.notes' && actor.system.notes && typeof actor.system.notes === 'object') {
-            // GURPS-style notes object
-            actorUpdateData['system.notes.notes'] = npcText;
-          } else {
-            // Simple string field
-            actorUpdateData[notesPath] = npcText;
+      const response = await FilePicker.browse("data", folderPath);
+      
+      // Process files in current folder
+      if (response.files && response.files.length > 0) {
+        for (const file of response.files) {
+          if (this._isImageFile(file)) {
+            images.push(file);
           }
         }
       }
-
-      // Update the actor first
-      await actor.update(actorUpdateData);
-
-      // Then update the token document in the scene
-      await token.document.update({
-        'texture.src': tokenUrl,
-        img: tokenUrl,
-        name: npcName
-      });
-
-      // Force refresh of the token to ensure changes are visible
-      await token.refresh();
-
-      // Force refresh of the actor sheet (if open)
-      const sheet = actor.sheet;
-      if (sheet?.rendered) {
-        sheet.render(true);
-      }
-
-      const message = npcText 
-        ? game.i18n.localize('npc-nexus.ui.tokenActorAndNotesUpdated')
-        : game.i18n.localize('npc-nexus.ui.tokenAndActorUpdated');
-      ui.notifications.info(message);
-
-    } catch (err) {
-      console.error(err);
-      ui.notifications.error(game.i18n.localize('npc-nexus.ui.errorUpdatingToken'));
-    }
-  }
-
-  /**
-   * Show context menu for NPC token
-   */
-  _showContextMenu(x, y) {
-    // Remove existing context menu
-    this._hideContextMenu();
-
-    const menu = $(`
-      <div class="context-menu" style="position: fixed; left: ${x}px; top: ${y}px;">
-        <button class="context-menu-item" data-action="view-notes">
-          <i class="fas fa-book"></i> ${game.i18n.localize('npc-nexus.ui.contextMenu.viewNotes')}
-        </button>
-        <button class="context-menu-item" data-action="edit-npc">
-          <i class="fas fa-edit"></i> ${game.i18n.localize('npc-nexus.ui.contextMenu.editNpc')}
-        </button>
-        <button class="context-menu-item context-menu-delete" data-action="delete-npc">
-          <i class="fas fa-trash"></i> ${game.i18n.localize('npc-nexus.ui.contextMenu.deleteNpc')}
-        </button>
-        </div>
-    `);
-
-    $('body').append(menu);
-  }
-
-  /**
-   * Hide context menu
-   */
-  _hideContextMenu() {
-    $('.context-menu').remove();
-  }
-
-  /**
-   * Show NPC notes in a dialog
-   */
-  _showNPCNotes() {
-    if (!this._currentContextMenuData) return;
-
-    const { npcId, npcName } = this._currentContextMenuData;
-    const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-    const foundNpc = campaignNPCs.find(npc => npc.id.toString() === npcId.toString());
-
-    if (!foundNpc) {
-      ui.notifications.warn(game.i18n.localize('npc-nexus.ui.npcNotFound'));
-      return;
-    }
-
-    const content = foundNpc.text || game.i18n.localize('npc-nexus.ui.noNotesAvailable');
-
-    new Dialog({
-      title: game.i18n.format('npc-nexus.ui.editDialog.notesTitle', { name: npcName }),
-      content: `<div class="notes-dialog">
-        <div class="notes-content">${content}</div>
-      </div>`,
-      buttons: {
-        close: {
-          label: game.i18n.localize('npc-nexus.ui.editDialog.close'),
-          callback: () => {}
-        }
-      },
-      default: "close",
-      classes: ["notes-dialog"]
-    }, {
-      classes: ["notes-dialog"],
-      width: 500,
-      height: 400
-    }).render(true);
-  }
-
-  /**
-   * Show edit NPC dialog
-   */
-  _showEditNPCDialog() {
-    if (!this._currentContextMenuData) return;
-
-    const { npcId, npcName } = this._currentContextMenuData;
-    
-    const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-    const foundNpc = campaignNPCs.find(npc => npc.id.toString() === npcId.toString());
-
-    if (!foundNpc) {
-      ui.notifications.warn(game.i18n.localize('npc-nexus.ui.npcNotFound'));
-      return;
-    }
-
-    const content = `
-      <div class="edit-npc-dialog">
-        <form id="edit-npc-form">
-          <div class="form-group">
-            <label for="edit-name" class="form-label">Nome:</label>
-            <input type="text" id="edit-name" name="name" value="${foundNpc.name || ''}" class="form-input" />
-          </div>
-          
-          <div class="form-group">
-            <label for="edit-type" class="form-label">Tipo:</label>
-            <input type="text" id="edit-type" name="type" value="${foundNpc.type || ''}" class="form-input" />
-          </div>
-          
-          <div class="form-group">
-            <label for="edit-campaign" class="form-label">Campanha:</label>
-            <input type="text" id="edit-campaign" name="campaign" value="${foundNpc.campaign || ''}" class="form-input" />
-          </div>
-          
-          <div class="form-group">
-            <label for="edit-text" class="form-label">Anotações:</label>
-            <textarea id="edit-text" name="text" rows="6" class="form-textarea">${foundNpc.text || ''}</textarea>
-          </div>
-          
-          <div class="checkbox-container">
-            <input type="checkbox" id="edit-isNPC" name="isNPC" ${foundNpc.isNPC ? 'checked' : ''} class="checkbox-input" />
-            <label for="edit-isNPC" class="checkbox-label">É NPC</label>
-          </div>
-          
-          <div class="checkbox-container">
-            <input type="checkbox" id="edit-isTaken" name="isTaken" ${foundNpc.isTaken ? 'checked' : ''} class="checkbox-input" />
-            <label for="edit-isTaken" class="checkbox-label">Está Ocupado</label>
-          </div>
-        </form>
-      </div>
-    `;
-
-    new Dialog({
-      title: game.i18n.format('npc-nexus.ui.editDialog.title', { name: npcName }),
-      content: content,
-      buttons: {
-        save: {
-          label: game.i18n.localize('npc-nexus.ui.editDialog.save'),
-          callback: (html) => this._saveNPCChanges(html, foundNpc)
-        },
-        cancel: {
-          label: game.i18n.localize('npc-nexus.ui.editDialog.cancel'),
-          callback: () => {}
-        }
-      },
-      default: "save",
-      render: (html) => {
-        // Focus on name field when dialog opens
-        html.find('#edit-name').focus();
-      },
-      classes: ["edit-npc-dialog"]
-    }, {
-      classes: ["edit-npc-dialog"],
-      width: 500,
-      height: 600
-    }).render(true);
-  }
-
-  /**
-   * Show delete NPC confirmation dialog
-   */
-  _showDeleteNPCDialog() {
-    if (!this._currentContextMenuData) return;
-
-    const { npcId, npcName } = this._currentContextMenuData;
-    
-    // Check if JWT token is configured
-    const jwtToken = game.settings.get(NPCNexusModule.ID, 'jwtToken');
-    if (!jwtToken || jwtToken.trim() === '') {
-      ui.notifications.error(game.i18n.localize('npc-nexus.ui.deleteDialog.jwtRequired'));
-      return;
-    }
-
-    const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-    const foundNpc = campaignNPCs.find(npc => npc.id.toString() === npcId.toString());
-
-    if (!foundNpc) {
-      ui.notifications.warn(game.i18n.localize('npc-nexus.ui.npcNotFound'));
-      return;
-    }
-
-    new Dialog({
-      title: game.i18n.format('npc-nexus.ui.deleteDialog.title', { name: npcName }),
-      content: `<div class="delete-npc-dialog">
-        <p class="delete-warning">${game.i18n.localize('npc-nexus.ui.deleteDialog.confirmMessage')}</p>
-      </div>`,
-      buttons: {
-        delete: {
-          label: game.i18n.localize('npc-nexus.ui.deleteDialog.confirmDelete'),
-          callback: () => this._deleteNPC(foundNpc)
-        },
-        cancel: {
-          label: game.i18n.localize('npc-nexus.ui.deleteDialog.cancel'),
-          callback: () => {}
-        }
-      },
-      default: "cancel",
-      classes: ["delete-npc-dialog"]
-    }, {
-      classes: ["delete-npc-dialog"],
-      width: 400,
-      height: 200
-    }).render(true);
-  }
-
-  /**
-   * Delete NPC from Strapi including associated media
-   */
-  async _deleteNPC(npc) {
-    try {
-      const jwtToken = game.settings.get(NPCNexusModule.ID, 'jwtToken');
       
-      if (!jwtToken || jwtToken.trim() === '') {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.deleteDialog.jwtRequired'));
-        return;
+      // Process subfolders recursively
+      if (response.dirs && response.dirs.length > 0) {
+        for (const dir of response.dirs) {
+          const subImages = await this._getImagesInFolder(dir);
+          images.push(...subImages);
+        }
       }
+      
+    } catch (error) {
+      console.log(`Error accessing folder: ${folderPath}`, error);
+    }
+    
+    return images;
+  }
 
-      // Show loading notification
-      ui.notifications.info(game.i18n.localize('npc-nexus.ui.deleteDialog.deleting'));
+  /**
+   * Apply NPC image to selected token
+   */
+  async _applyNpcImageToSelectedToken(npcId) {
+    const npc = this.npcs.find(n => n.id === npcId);
+    if (!npc) return;
 
-      // First, delete associated media files
-      if (npc.token) {
-        const tokens = this._extractTokenImages(npc.token);
-        for (const token of tokens) {
-          if (token && token.id) {
-            try {
-              await fetch(`${this.strapiUrl}/api/upload/files/${token.id}`, {
-                method: 'DELETE',
-                headers: {
-                  'Authorization': `Bearer ${jwtToken}`,
-                  'Content-Type': 'application/json'
-                }
-              });
-              console.log(`Media file ${token.id} deleted successfully`);
-            } catch (mediaError) {
-              console.warn('Error deleting media file:', mediaError);
-              // Continue with NPC deletion even if media deletion fails
-            }
+    // Check if any tokens are selected
+    const selectedTokens = canvas.tokens.controlled;
+    if (selectedTokens.length === 0) {
+      ui.notifications.warn('No token selected. Select a token on the map first.');
+      return;
+    }
+
+    console.log("Applying NPC image:", npc.img);
+    console.log("Complete NPC data:", npc);
+    try {
+      let updatedCount = 0;
+      
+      // If multiple tokens are selected, use random images from the same folder
+      if (selectedTokens.length > 1) {
+        console.log("Multiple tokens selected, getting random images from folder:", npc.folder);
+        const folderImages = await this._getImagesInFolder(npc.folder);
+        
+        if (folderImages.length === 0) {
+          ui.notifications.warn('No images found in the selected NPC folder.');
+          return;
+        }
+        
+        console.log(`Found ${folderImages.length} images in folder for random selection`);
+        
+        // Create a shuffled copy of the images array to avoid repetition
+        const shuffledImages = [...folderImages].sort(() => Math.random() - 0.5);
+        
+        for (const token of selectedTokens) {
+          // Use images from shuffled array, cycling if we have more tokens than images
+          const imageIndex = updatedCount % shuffledImages.length;
+          const randomImage = shuffledImages[imageIndex];
+          console.log(`Applying random image to token: ${randomImage}`);
+          
+          // Update token image
+          const updateData = {
+            "texture.src": randomImage,
+            actorLink: true
+          };
+          
+          // Check if image is from Montarias folder and apply scale
+          if (randomImage && randomImage.toLowerCase().includes('montarias')) {
+            updateData["texture.scaleX"] = 3;
+            updateData["texture.scaleY"] = 3;
           }
+          
+          await token.document.update(updateData);
+          
+          // Update actor image if token has an actor
+          if (token.actor) {
+            await token.actor.update({
+              img: randomImage
+            });
+          }
+          
+          updatedCount++;
         }
-      }
-
-      // Delete the NPC using documentId for Strapi 5
-      const documentId = npc.documentId || npc.id;
-      const deleteUrl = `${this.strapiUrl}/api/npcs/${documentId}`;
-
-      console.log(`Attempting to delete NPC at: ${deleteUrl}`);
-      console.log(`Using JWT token: ${jwtToken ? 'Token present' : 'No token'}`);
-      const response = await fetch(deleteUrl, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${jwtToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('JWT_INVALID');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Remove from local cache
-      const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-      const npcIndex = campaignNPCs.findIndex(n => n.id === npc.id);
-      if (npcIndex !== -1) {
-        campaignNPCs.splice(npcIndex, 1);
-      }
-
-      // Re-render the view
-      this._filterAndRenderNPCs();
-
-      ui.notifications.info(game.i18n.localize('npc-nexus.ui.deleteDialog.deletedSuccessfully'));
-
-    } catch (error) {
-      console.error('Error deleting NPC:', error);
-      
-      if (error.message === 'JWT_INVALID') {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.deleteDialog.jwtInvalid'));
+        
+        ui.notifications.info(`Random images from the same folder applied to ${updatedCount} token(s) successfully!`);
+        
       } else {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.deleteDialog.errorDeleting'));
+        // Single token selected - use the specific clicked image
+        for (const token of selectedTokens) {
+          // Update token image
+          const updateData = {
+            "texture.src": npc.img,
+            actorLink: true
+          };
+          
+          // Check if NPC is from Montarias folder and apply scale
+          if (npc.img && npc.img.toLowerCase().includes('montarias')) {
+            updateData["texture.scaleX"] = 3;
+            updateData["texture.scaleY"] = 3;
+          }
+          
+          await token.document.update(updateData);
+          
+          // Update actor image if token has an actor
+          if (token.actor) {
+            await token.actor.update({
+              img: npc.img
+            });
+          }
+          
+          updatedCount++;
+        }
+        
+        ui.notifications.info(`Image applied to ${updatedCount} token(s) successfully!`);
       }
+      
+    } catch (error) {
+      console.error('Error applying NPC image:', error);
+      ui.notifications.error('Error applying NPC image');
     }
   }
 
   /**
-   * Save NPC changes via PUT request to Strapi using documentId for Strapi 5
+   * Show context menu
    */
-  async _saveNPCChanges(html, originalNpc) {
-    try {
-      // Get form data
-      const formData = {
-        name: html.find('#edit-name').val().trim(),
-        type: html.find('#edit-type').val().trim(),
-        campaign: html.find('#edit-campaign').val().trim(),
-        text: html.find('#edit-text').val().trim(),
-        isNPC: html.find('#edit-isNPC').is(':checked'),
-        isTaken: html.find('#edit-isTaken').is(':checked')
-      };
+  _showContextMenu(event, npcId) {
+    const npc = this.npcs.find(n => n.id === npcId);
+    if (!npc) return;
 
-      // Validate required fields
-      if (!formData.name) {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.nameRequired'));
-        return;
-      }
-
-      if (!formData.campaign) {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.campaignRequired'));
-        return;
-      }
-
-      // Show loading notification
-      ui.notifications.info(game.i18n.localize('npc-nexus.ui.savingChanges'));
-
-      // For Strapi 5, use documentId instead of id for updates
-      const documentId = originalNpc.documentId || originalNpc.id;
-      
-      // Construct the complete URL using documentId
-      const updateUrl = `${this.strapiUrl}/api/npcs/${documentId}`;
-
-      if (!documentId) {
-        ui.notifications.error(game.i18n.localize('npc-nexus.ui.errorSavingChanges'));
-        return;
-      }
-
-      // Make PUT request to Strapi using documentId
-      const response = await fetch(updateUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          data: formData
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const updatedData = await response.json();
-
-      // Update local cache using id for the search
-      const campaignNPCs = this.npcs.get(this.activeCampaign) || [];
-      const npcIndex = campaignNPCs.findIndex(npc => npc.id === originalNpc.id);
-      if (npcIndex !== -1) {
-        // Merge the updated data with the original NPC data
-        campaignNPCs[npcIndex] = {
-          ...originalNpc,
-          ...formData,
-          id: originalNpc.id, // Ensure ID is preserved
-          documentId: originalNpc.documentId // Ensure documentId is preserved
-        };
-      }
-
-      // If campaign changed, we need to reload campaigns and NPCs
-      if (formData.campaign !== originalNpc.campaign) {
-        // Clear loaded campaigns to force reload
-        this.loadedCampaigns.clear();
-        this.campaigns = [];
-        
-        // Reload campaigns
-        await this._loadCampaigns();
-        
-        // If the new campaign is different from current active, switch to it
-        if (formData.campaign !== this.activeCampaign) {
-          // Update campaign selector
-          $('#campaign-select').val(formData.campaign);
-          await this.setActiveCampaign(formData.campaign);
-        } else {
-          // Reload current campaign
-          await this._loadNPCsForCampaign(this.activeCampaign);
+    const contextMenu = new ContextMenu($('body'), '.npc-item', [
+      {
+        name: "Copy Path",
+        icon: '<i class="fas fa-copy"></i>',
+        callback: () => {
+          navigator.clipboard.writeText(npc.path);
+          ui.notifications.info('Path copied to clipboard');
         }
-      } else {
-        // Just re-render the current view
-        this._filterAndRenderNPCs();
+      },
+      {
+        name: "Apply to Selected Token",
+        icon: '<i class="fas fa-image"></i>',
+        callback: () => this._applyNpcImageToSelectedToken(npcId)
       }
+    ]);
+  }
 
-      ui.notifications.info(game.i18n.localize('npc-nexus.ui.npcUpdatedSuccessfully'));
+  /**
+   * Show name generator dialog
+   */
+  showNameGeneratorDialog() {
+    this.nameGenerator.showNameGeneratorDialog();
+  }
 
-    } catch (error) {
-      console.error('Error updating NPC:', error);
-      ui.notifications.error(game.i18n.localize('npc-nexus.ui.errorSavingChanges'));
+  /**
+   * Toggle panel visibility
+   */
+  togglePanel() {
+    if (this.isOpen) {
+      this.closePanel();
+    } else {
+      this.openPanel();
     }
+  }
+
+  /**
+   * Open panel
+   */
+  openPanel() {
+    $('#npc-nexus-panel').addClass('open');
+    this.isOpen = true;
+    
+    // Load NPCs if folder is set
+    if (this.folderPath && this.npcs.length === 0) {
+      this.loadNPCsFromFolder();
+    }
+  }
+
+  /**
+   * Close panel
+   */
+  closePanel() {
+    $('#npc-nexus-panel').removeClass('open');
+    this.isOpen = false;
   }
 }
 
-// Initialize module when Foundry is ready
-Hooks.once('init', NPCNexusModule.initialize);
+// Initialize when Foundry is ready
+Hooks.once('init', () => {
+  NPCNexusModule.initialize();
+});
+
+// Export for external access
+export { NPCNexusModule };

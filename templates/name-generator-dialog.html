@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+</head>
+<body>
+<div id="name-generator-panel" class="npc-nexus-panel">
+  <div class="panel-header">
+    <p><i class="fas fa-dice"></i> Name Generator<p>
+    <button id="close-dialog-btn" class="close-btn" title="Close">
+      <i class="fas fa-times"></i>
+    </button>
+  </div>
+
+  <div class="panel-content">
+    <div class="filters-section">
+      <div class="filter-group">
+        <label for="nation-select">Nation:</label>
+        <select id="nation-select">
+          <!-- Options will be populated by JavaScript -->
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="gender-select">Gender:</label>
+        <select id="gender-select">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="format-select">Format:</label>
+        <select id="format-select">
+          <option value="full">Full Name</option>
+          <option value="first">First Name Only</option>
+          <option value="last">Last Name Only</option>
+        </select>
+      </div>
+      
+      <div class="filter-group">
+        <label for="generated-name">Generated Name:</label>
+        <input type="text" id="generated-name" readonly class="generated-name-input" />
+      </div>
+    </div>
+    
+    <div class="dialog-buttons">
+      <button type="button" id="generate-name-btn" class="header-btn">
+        <i class="fas fa-dice"></i> Generate New Name
+      </button>
+      <button type="button" id="apply-name-to-token-btn" class="header-btn apply-btn">
+        <i class="fas fa-user-tag"></i> Apply to Token
+      </button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
