@@ -17,15 +17,12 @@
     "scripts/main.js",
     "scripts/name-generator.js"
   ],
-  "templates": [
-    "templates/npc-nexus-panel.html",
-    "templates/name-generator-dialog.html"
-  ],
+
   "styles": [
     "styles/module.css"
   ],
   "socket": true,
-  "url": "https://github.com/yourname/npc-nexus-local",
+  "url": "https://github.com/Boifuba/npc-nexus",
   "manifest": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.2/module.json",
   "download": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.2/npc-nexus.zip",
   "license": "MIT"

@@ -19,11 +19,6 @@ class NPCNexusModule {
   static instance = null;
 
   static initialize() {
-    // Only initialize for GM
-    if (!game.user.isGM) {
-      return null;
-    }
-
     if (!NPCNexusModule.instance) {
       NPCNexusModule.instance = new NPCNexusModule();
     }
@@ -31,22 +26,17 @@ class NPCNexusModule {
   }
 
   /**
-   * Check if current user is GM
+   * Check if current user is GM using proper Foundry API
    */
   _isGM() {
-    return game.user.isGM;
+    return game.user?.isGM || game.user?.role >= CONST.USER_ROLES.GAMEMASTER;
   }
 
   /**
    * Initialize the module
    */
   _init() {
-    // Early return if not GM
-    if (!this._isGM()) {
-      return;
-    }
-
-    // Register module settings
+    // Register module settings (can be done during init)
     game.settings.register(NPCNexusModule.ID, 'folderPath', {
       name: 'NPCs Folder',
       hint: 'Path to the folder containing NPC image files (e.g., npcs)',
@@ -94,25 +84,24 @@ class NPCNexusModule {
       }
     });
 
-    this.folderPath = game.settings.get(NPCNexusModule.ID, 'folderPath');
-
-    // Add controls to the left sidebar - GM only
-    Hooks.on('renderSidebarTab', (app, html) => {
-      if (app.tabName === 'actors' && this._isGM()) {
-        this._addNPCButton(html);
-      }
-    });
-
-    // Initialize when ready - GM only
+    // Initialize when ready - GM check moved here
     Hooks.once('ready', () => {
       if (this._isGM()) {
+        this.folderPath = game.settings.get(NPCNexusModule.ID, 'folderPath');
         this._createSidePanel();
         this._bindEvents();
         this._exposeAPI();
       }
     });
+
+    // Add controls to the left sidebar - GM check moved to hook callback
+    Hooks.on('renderSidebarTab', (app, html) => {
+      if (app.tabName === 'actors' && this._isGM()) {
+        this._addNPCButton(html);
+      }
+    });
     
-    // Add scene control buttons - GM only
+    // Add scene control buttons - GM check moved to hook callback
     Hooks.on("getSceneControlButtons", (controls) => {
       if (!this._isGM()) {
         return;
@@ -876,11 +865,10 @@ class NPCNexusModule {
   }
 }
 
-// Initialize when Foundry is ready - Only for GMs
+// Initialize when Foundry is ready - Remove GM check from init hook
 Hooks.once('init', () => {
-  if (game.user.isGM) {
-    NPCNexusModule.initialize();
-  }
+  // Always initialize the module, GM check happens later
+  NPCNexusModule.initialize();
 });
 
 // Export for external access
