@@ -19,6 +19,11 @@ class NPCNexusModule {
   static instance = null;
 
   static initialize() {
+    // Only initialize for GM
+    if (!game.user.isGM) {
+      return null;
+    }
+
     if (!NPCNexusModule.instance) {
       NPCNexusModule.instance = new NPCNexusModule();
     }
@@ -26,9 +31,21 @@ class NPCNexusModule {
   }
 
   /**
+   * Check if current user is GM
+   */
+  _isGM() {
+    return game.user.isGM;
+  }
+
+  /**
    * Initialize the module
    */
   _init() {
+    // Early return if not GM
+    if (!this._isGM()) {
+      return;
+    }
+
     // Register module settings
     game.settings.register(NPCNexusModule.ID, 'folderPath', {
       name: 'NPCs Folder',
@@ -79,22 +96,28 @@ class NPCNexusModule {
 
     this.folderPath = game.settings.get(NPCNexusModule.ID, 'folderPath');
 
-    // Add controls to the left sidebar
+    // Add controls to the left sidebar - GM only
     Hooks.on('renderSidebarTab', (app, html) => {
-      if (app.tabName === 'actors') {
+      if (app.tabName === 'actors' && this._isGM()) {
         this._addNPCButton(html);
       }
     });
 
-    // Initialize when ready
+    // Initialize when ready - GM only
     Hooks.once('ready', () => {
-      this._createSidePanel();
-      this._bindEvents();
-      this._exposeAPI();
+      if (this._isGM()) {
+        this._createSidePanel();
+        this._bindEvents();
+        this._exposeAPI();
+      }
     });
     
-    // Add scene control buttons
+    // Add scene control buttons - GM only
     Hooks.on("getSceneControlButtons", (controls) => {
+      if (!this._isGM()) {
+        return;
+      }
+
       const tokenControls = controls.tokens;
 
       if (tokenControls && tokenControls.tools) {
@@ -127,6 +150,11 @@ class NPCNexusModule {
    * Load NPCs from local folder
    */
   async loadNPCsFromFolder() {
+    if (!this._isGM()) {
+      ui.notifications.warn('Only GMs can load NPCs.');
+      return;
+    }
+
     try {
       this.npcs = [];
       await this._loadRecursive(this.folderPath);
@@ -142,6 +170,10 @@ class NPCNexusModule {
    * Recursively load files from folder structure
    */
   async _loadRecursive(caminho, nivel = 0) {
+    if (!this._isGM()) {
+      return;
+    }
+
     try {
       let response = await FilePicker.browse("data", caminho);
       
@@ -230,20 +262,18 @@ class NPCNexusModule {
     if (!machineName) return '';
     
     // First decode any URL-encoded characters
-const decoded = decodeURIComponent(machineName).replace(/_/g, ' ');
+    const decoded = decodeURIComponent(machineName).replace(/_/g, ' ');
 
-const capitalized = decoded
-  .split(' ')
-  .map(word => {
-    if (!word) return word;
-    const [first, ...rest] = [...word];
-    return first.toUpperCase() + rest.join('').toLowerCase();
-  })
-  .join(' ');
+    const capitalized = decoded
+      .split(' ')
+      .map(word => {
+        if (!word) return word;
+        const [first, ...rest] = [...word];
+        return first.toUpperCase() + rest.join('').toLowerCase();
+      })
+      .join(' ');
 
-return capitalized;
-
-
+    return capitalized;
   }
 
   /**
@@ -267,9 +297,13 @@ return capitalized;
   }
 
   /**
-   * Expose API for macros and external access
+   * Expose API for macros and external access - GM only
    */
   _exposeAPI() {
+    if (!this._isGM()) {
+      return;
+    }
+
     const module = game.modules.get(NPCNexusModule.ID);
     if (module) {
       module.api = {
@@ -299,6 +333,10 @@ return capitalized;
    * Add NPC button to actors sidebar
    */
   _addNPCButton(html) {
+    if (!this._isGM()) {
+      return;
+    }
+
     const button = $(`
       <button class="npc-nexus-btn" title="NPC Nexus">
         <i class="fas fa-users"></i> NPC Nexus
@@ -313,6 +351,10 @@ return capitalized;
    * Create the main side panel
    */
   async _createSidePanel() {
+    if (!this._isGM()) {
+      return;
+    }
+
     try {
       const html = await renderTemplate('modules/npc-nexus/templates/npc-nexus-panel.html', {});
       $('body').append(html);
@@ -330,6 +372,10 @@ return capitalized;
    * Fallback panel creation
    */
   _createSidePanelFallback() {
+    if (!this._isGM()) {
+      return;
+    }
+
     const panel = $(`
       <div id="npc-nexus-panel" class="npc-nexus-panel">
         <div class="panel-header">
@@ -395,6 +441,10 @@ return capitalized;
    * Bind events
    */
   _bindEvents() {
+    if (!this._isGM()) {
+      return;
+    }
+
     $(document).on('click', '#npc-nexus-panel .close-btn', () => {
       this.closePanel();
     });
@@ -434,6 +484,10 @@ return capitalized;
    * Filter and render NPCs
    */
   _filterAndRenderNPCs() {
+    if (!this._isGM()) {
+      return;
+    }
+
     // Start with all NPCs
     let filteredNpcs = [...this.npcs];
     
@@ -636,6 +690,11 @@ return capitalized;
    * Apply NPC image to selected token
    */
   async _applyNpcImageToSelectedToken(npcId) {
+    if (!this._isGM()) {
+      ui.notifications.warn('Only GMs can apply NPC images.');
+      return;
+    }
+
     const npc = this.npcs.find(n => n.id === npcId);
     if (!npc) return;
 
@@ -738,6 +797,10 @@ return capitalized;
    * Show context menu
    */
   _showContextMenu(event, npcId) {
+    if (!this._isGM()) {
+      return;
+    }
+
     const npc = this.npcs.find(n => n.id === npcId);
     if (!npc) return;
 
@@ -762,6 +825,11 @@ return capitalized;
    * Show name generator dialog
    */
   showNameGeneratorDialog() {
+    if (!this._isGM()) {
+      ui.notifications.warn('Only GMs can use the name generator.');
+      return;
+    }
+
     this.nameGenerator.showNameGeneratorDialog();
   }
 
@@ -769,6 +837,11 @@ return capitalized;
    * Toggle panel visibility
    */
   togglePanel() {
+    if (!this._isGM()) {
+      ui.notifications.warn('Only GMs can access NPC Nexus.');
+      return;
+    }
+
     if (this.isOpen) {
       this.closePanel();
     } else {
@@ -780,6 +853,11 @@ return capitalized;
    * Open panel
    */
   openPanel() {
+    if (!this._isGM()) {
+      ui.notifications.warn('Only GMs can access NPC Nexus.');
+      return;
+    }
+
     $('#npc-nexus-panel').addClass('open');
     this.isOpen = true;
     
@@ -798,9 +876,11 @@ return capitalized;
   }
 }
 
-// Initialize when Foundry is ready
+// Initialize when Foundry is ready - Only for GMs
 Hooks.once('init', () => {
-  NPCNexusModule.initialize();
+  if (game.user.isGM) {
+    NPCNexusModule.initialize();
+  }
 });
 
 // Export for external access

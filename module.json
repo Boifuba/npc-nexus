@@ -1,8 +1,8 @@
 {
   "id": "npc-nexus",
-  "title": "NPC Nexus - Local Files",
+  "title": "NPC Nexus",
   "description": "Módulo para gerenciar NPCs usando arquivos locais",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
@@ -26,8 +26,8 @@
   ],
   "socket": true,
   "url": "https://github.com/yourname/npc-nexus-local",
-  "manifest": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.1/module.json",
-  "download": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.1/npc-nexus.zip",
+  "manifest": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.2/module.json",
+  "download": "https://github.com/Boifuba/npc-nexus/releases/download/2.0.2/npc-nexus.zip",
   "license": "MIT"
 }
 

@@ -4,18 +4,23 @@ Módulo para Foundry VTT que permite gerenciar NPCs usando arquivos locais em ve
 
 ## Características
 
-- **Acesso a arquivos locais**: Carrega NPCs diretamente de pastas no seu mundo Foundry
+- **Acesso a arquivos locais**: Carrega as imagens de NPCs diretamente de pastas pré-setadas no seu mundo Foundry
 - **Interface simplificada**: Sem funcionalidades de edição complexas
 - **Estrutura de pastas inteligente**: Reconhece campanha/tipo/gênero pela estrutura de pastas
 - **Filtros avançados**: Filtre por nome, tipo e gênero
 - **Gerador de nomes**: Inclui gerador de nomes para NPCs
-- **Responsivo**: Interface adaptável a diferentes tamanhos de tela
+- **Responsivo**: Interface adaptável a diferentes tamanhos de tela e posição
 
 ## Instalação
 
 1. Extraia o módulo na pasta `modules` do seu Foundry VTT
 2. Ative o módulo nas configurações do mundo
 3. Configure a pasta dos NPCs nas configurações do módulo
+
+
+ou 
+
+1. Instale usando o module.json dentro da parte de instação de módulos.
 
 ## Configuração
 
@@ -68,12 +73,7 @@ npcs/                    <- Pasta raiz (configurada nas settings)
 2. **Segunda pasta** = **Tipo** do NPC (guerreiro, mago, ladino, etc.)
 3. **Pastas "male" ou "female"** = **Gênero** (usado apenas para filtros)
 
-### Nomenclatura de Arquivos
 
-Os nomes dos arquivos serão usados como nomes dos NPCs. Exemplos:
-- `aragorn.png` → Nome: "Aragorn"
-- `gandalf_o_cinzento.png` → Nome: "Gandalf o cinzento"
-- `red_dragon.png` → Nome: "Red dragon"
 
 ## Como Usar
 
@@ -86,15 +86,6 @@ Os nomes dos arquivos serão usados como nomes dos NPCs. Exemplos:
 
 O módulo carrega automaticamente todos os NPCs da pasta configurada quando o painel é aberto.
 
-### Criando Atores
-
-1. Clique em qualquer NPC na grade para criar um ator automaticamente
-2. O ator será criado com as informações extraídas da estrutura de pastas:
-   - **Nome**: Nome do arquivo
-   - **Tipo**: Nome da segunda pasta
-   - **Gênero**: "male" ou "female" se estiver em pasta correspondente
-   - **Campanha**: Nome da primeira pasta
-3. A ficha do ator será aberta automaticamente
 
 ### Filtros
 
@@ -106,9 +97,10 @@ Use os filtros disponíveis para encontrar NPCs específicos:
 
 ### Menu de Contexto
 
-Clique com o botão direito em um NPC para:
-- Criar ator
-- Copiar caminho do arquivo
+Clique na imagem de um NPC para :
+- Trocar a imagem dos atores selecionados
+
+> Se você estiver com mais de um token selecionado o módulo vai aplicar uma imagem  de dentro da pasta para cada um randomicamente até não ter mais imagens disponiveis então ele irá setar imagens repetidas
 
 ## Gerador de Nomes
 
@@ -136,50 +128,7 @@ O módulo inclui um gerador de nomes que pode ser acessado:
 - WebP
 - SVG
 
-## Exemplo de Script para Listar Pastas
 
-Você pode usar este script no console do Foundry para explorar a estrutura de pastas:
-
-```javascript
-// Digite o nome da pasta aqui
-let nomePasta = "npcs"; // MUDE AQUI
-
-console.clear();
-console.log(`=== LISTANDO RECURSIVO: ${nomePasta} ===`);
-
-async function listarRecursivo(caminho, nivel = 0) {
-    let indent = "  ".repeat(nivel);
-    
-    try {
-        let response = await FilePicker.browse("data", caminho);
-        
-        // Lista arquivos da pasta atual
-        if (response.files && response.files.length > 0) {
-            response.files.forEach(file => {
-                let nome = file.split('/').pop();
-                console.log(`${indent}📄 ${nome}`);
-            });
-        }
-        
-        // Lista e entra nas subpastas
-        if (response.dirs && response.dirs.length > 0) {
-            for (let dir of response.dirs) {
-                let nomePasta = dir.split('/').pop();
-                console.log(`${indent}📁 ${nomePasta}/`);
-                
-                // Chama recursivamente para a subpasta
-                await listarRecursivo(dir, nivel + 1);
-            }
-        }
-        
-    } catch (error) {
-        console.log(`${indent}❌ Erro ao acessar: ${caminho}`);
-    }
-}
-
-// Executa a listagem recursiva
-await listarRecursivo(nomePasta);
-```
 
 ## Exemplo Prático
 
@@ -193,28 +142,20 @@ npcs/
     │   └── female/
     │       └── eowyn.png
     └── mago/
-        └── male/
-            └── gandalf.png
+    |    └── male/
+    |        └── gandalf.png
+    └── qualquer /
+        └── john-doe.png
+        
+        
 ```
 
 O módulo criará NPCs com:
 - **Aragorn**: Campanha="senhor-dos-aneis", Tipo="guerreiro", Gênero="male"
 - **Eowyn**: Campanha="senhor-dos-aneis", Tipo="guerreiro", Gênero="female"  
 - **Gandalf**: Campanha="senhor-dos-aneis", Tipo="mago", Gênero="male"
+- **John Doe**: Campanha="senhor-dos-aneis", Tipo="qualquer"
 
-## Diferenças da Versão Strapi
-
-Esta versão foi modificada para:
-
-- ✅ Usar arquivos locais em vez de servidor Strapi
-- ✅ Remover funcionalidades de edição de NPCs
-- ✅ Remover internacionalização
-- ✅ Remover configurações JWT
-- ✅ Remover mecânicas de "isNPC" e "ocupado"
-- ✅ Simplificar a interface (sem seletor de pasta na UI)
-- ✅ Reconhecer estrutura de pastas automaticamente
-- ✅ Manter o gerador de nomes
-- ✅ Manter filtros e busca
 
 ## Suporte
 
